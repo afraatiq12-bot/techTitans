@@ -1,0 +1,85 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'nafeesahoorain827@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // --- Status ---
+    match /status/{docId} {
+      allow read: if true;
+    }
+
+    // --- Users ---
+    match /users/{userId} {
+      function isValidUser(data) {
+        return data.keys().hasAll(['name', 'createdAt']) &&
+               data.name is string && data.name.size() > 0 &&
+               data.createdAt is timestamp;
+      }
+
+      allow get: if isSignedIn() && (isOwner(userId) || isAdmin());
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'bloodGroup', 'emergencyContacts'])
+      );
+    }
+
+    // --- Requests ---
+    match /requests/{requestId} {
+      function isValidRequest(data) {
+        return data.keys().hasAll(['problem', 'category', 'urgency', 'status', 'createdAt', 'multimodalType']) &&
+               data.problem is string && data.problem.size() <= 10000 &&
+               data.category in ['medical', 'fire', 'police', 'cybercrime', 'domestic', 'animal', 'lights', 'toilets', 'noise', 'transit', 'traffic', 'building', 'records', 'water', 'electricity', 'roads', 'waste', 'crop', 'general'] &&
+               data.urgency in ['low', 'medium', 'high'] &&
+               data.status in ['pending', 'active', 'resolved'] &&
+               data.multimodalType in ['text', 'image', 'audio'] &&
+               data.createdAt is timestamp;
+      }
+
+      allow create: if isValidRequest(request.resource.data) && 
+                      request.resource.data.createdAt == request.time &&
+                      (request.resource.data.userId == null || request.resource.data.userId == request.auth.uid);
+      
+      allow get: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow list: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      
+      allow update: if (isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid)) &&
+                      isValidRequest(request.resource.data) &&
+                      request.resource.data.problem == resource.data.problem &&
+                      request.resource.data.multimodalType == resource.data.multimodalType;
+      allow delete: if isAdmin();
+    }
+
+    // --- Admins ---
+    match /admins/{adminId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+  }
+}

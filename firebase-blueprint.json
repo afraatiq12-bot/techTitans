@@ -1,0 +1,74 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with emergency info",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "bloodGroup": { "type": "string" },
+        "emergencyContacts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "phone": { "type": "string" },
+              "relation": { "type": "string" }
+            }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "createdAt"]
+    },
+    "Request": {
+      "title": "Emergency Request",
+      "description": "A help request from a user",
+      "type": "object",
+      "properties": {
+        "problem": { "type": "string" },
+        "category": { "type": "string", "enum": ["medical", "fire", "police", "cybercrime", "domestic", "animal", "lights", "toilets", "noise", "transit", "traffic", "building", "records", "water", "electricity", "roads", "waste", "crop", "general"] },
+        "urgency": { "type": "string", "enum": ["low", "medium", "high"] },
+        "status": { "type": "string", "enum": ["pending", "active", "resolved"] },
+        "location": {
+          "type": "object",
+          "properties": {
+            "latitude": { "type": "number" },
+            "longitude": { "type": "number" },
+            "address": { "type": "string" }
+          }
+        },
+        "userId": { "type": "string" },
+        "multimodalType": { "type": "string", "enum": ["text", "image", "audio"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["problem", "category", "urgency", "createdAt", "multimodalType"]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "Admin user with dashboard access",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["superadmin", "moderator"] }
+      },
+      "required": ["email", "role"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "User records"
+    },
+    "requests/{requestId}": {
+      "schema": "Request",
+      "description": "Emergency help requests"
+    },
+    "admins/{adminId}": {
+      "schema": "Admin",
+      "description": "Admin allowlist"
+    }
+  }
+}

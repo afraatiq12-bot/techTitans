@@ -1,0 +1,10 @@
+{
+  "name": "Remix: RescueRouter",
+  "description": "A mobile-first emergency assistance app that classifies problems, detects urgency, and provides real-time guidance and nearby help.",
+  "requestFramePermissions": [
+    "geolocation",
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": []
+}

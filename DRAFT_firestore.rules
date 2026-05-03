@@ -1,0 +1,76 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // --- Users ---
+    match /users/{userId} {
+      function isValidUser(data) {
+        return data.keys().hasAll(['name', 'createdAt']) &&
+               data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+               data.createdAt is timestamp;
+      }
+
+      allow get: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.createdAt == request.time;
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'bloodGroup', 'emergencyContacts'])
+      );
+    }
+
+    // --- Requests ---
+    match /requests/{requestId} {
+      function isValidRequest(data) {
+        return data.keys().hasAll(['problem', 'category', 'urgency', 'status', 'createdAt']) &&
+               data.problem is string && data.problem.size() > 0 && data.problem.size() < 1000 &&
+               data.category in ['medical', 'fire', 'police', 'crop', 'general'] &&
+               data.urgency in ['low', 'medium', 'high'] &&
+               data.status in ['pending', 'active', 'resolved'] &&
+               data.createdAt is timestamp;
+      }
+
+      // Guest can create, but only admins or owners can read/list
+      allow create: if isValidRequest(request.resource.data) && 
+                      request.resource.data.createdAt == request.time &&
+                      (isSignedIn() ? request.resource.data.userId == request.auth.uid : !request.resource.data.keys().contains('userId'));
+      
+      allow get: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow list: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      
+      allow update: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid && 
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']));
+    }
+
+    // --- Admins ---
+    match /admins/{adminId} {
+      allow read: if isSignedIn(); // Allow checking if user is admin
+      allow write: if false; // Admins are managed via Console or another secure way
+    }
+  }
+}
